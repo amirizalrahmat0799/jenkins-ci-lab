@@ -32,13 +32,13 @@ services:
     container_name: ci-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: kira
-      POSTGRES_PASSWORD: kira
-      POSTGRES_DB: kira
+      POSTGRES_USER: ci
+      POSTGRES_PASSWORD: ci
+      POSTGRES_DB: ci
     tmpfs:
       - /var/lib/postgresql/data # test data only; kept in memory and gone on restart
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kira"]
+      test: ["CMD-SHELL", "pg_isready -U ci"]
       interval: 5s
       timeout: 3s
       retries: 10

@@ -1,0 +1,61 @@
+// Template: build a Docker image and deploy it on this computer (continuous deployment, local edition).
+// Every branch builds and tags the image; only main is deployed. The app runs as a container on the
+// ci-lab network and is published on HOST_PORT, e.g. http://localhost:9001.
+// Put your test stages (from the other templates) before "Docker image".
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        disableConcurrentBuilds()
+    }
+
+    environment {
+        APP_NAME = 'my-app'      // image and container name
+        APP_DIR = '.'            // folder with the Dockerfile
+        HOST_PORT = '9001'       // port on your computer
+        CONTAINER_PORT = '8080'  // port the app listens on inside the container
+    }
+
+    stages {
+        stage('Docker image') {
+            steps {
+                sh 'docker build -t "$APP_NAME:$BUILD_NUMBER" -t "$APP_NAME:latest" "$APP_DIR"'
+            }
+        }
+
+        stage('Deploy') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh '''
+                    docker rm -f "$APP_NAME" 2>/dev/null || true
+                    docker run -d --name "$APP_NAME" --restart unless-stopped \
+                      --network ci-lab -p "$HOST_PORT:$CONTAINER_PORT" \
+                      "$APP_NAME:$BUILD_NUMBER"
+                '''
+            }
+        }
+
+        stage('Smoke test') {
+            when {
+                branch 'main'
+            }
+            steps {
+                // Wait up to 60 s until the app accepts HTTP connections (any status code counts)
+                sh '''
+                    for i in $(seq 1 30); do
+                      if docker run --rm --network ci-lab curlimages/curl -sS -o /dev/null "http://$APP_NAME:$CONTAINER_PORT/"; then
+                        echo "$APP_NAME is up on http://localhost:$HOST_PORT"; exit 0
+                      fi
+                      sleep 2
+                    done
+                    echo "$APP_NAME did not respond"; docker logs --tail 50 "$APP_NAME"; exit 1
+                '''
+            }
+        }
+    }
+}

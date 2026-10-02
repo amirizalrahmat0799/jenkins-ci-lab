@@ -1,0 +1,32 @@
+// Template: Node.js project (React, Vite, Expo, Express, ...).
+// Copy to the root of your repo as "Jenkinsfile". Adjust CHECKS to the npm scripts your package.json has.
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        disableConcurrentBuilds()
+    }
+
+    environment {
+        NODE_IMAGE = 'node:22'
+        APP_DIR = '.'
+        CHECKS = 'npm ci && npm run lint && npm test && npm run build'
+    }
+
+    stages {
+        stage('Install, lint, test, build') {
+            steps {
+                sh '''
+                    docker run --rm --volumes-from jenkins \
+                      -v ci-lab-npm:/root/.npm \
+                      -w "$WORKSPACE/$APP_DIR" \
+                      -e CI=true \
+                      "$NODE_IMAGE" sh -c "$CHECKS"
+                '''
+            }
+        }
+    }
+}

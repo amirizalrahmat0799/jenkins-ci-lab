@@ -1,0 +1,56 @@
+// Template: Java / Maven project with integration tests against PostgreSQL.
+// Each build gets an empty database on the lab's ci-postgres server (one per executor, so two branches
+// building at once never share data). Your tests read the connection from the variables passed below;
+// rename them to whatever your application expects (e.g. SPRING_DATASOURCE_URL).
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        disableConcurrentBuilds()
+    }
+
+    environment {
+        MAVEN_IMAGE = 'maven:3.9-eclipse-temurin-21'
+        APP_DIR = '.'
+        TEST_DB = "app_ci_${env.EXECUTOR_NUMBER}"
+    }
+
+    stages {
+        stage('Test database') {
+            steps {
+                sh '''
+                    docker exec ci-postgres dropdb -U ci --if-exists "$TEST_DB"
+                    docker exec ci-postgres createdb -U ci "$TEST_DB"
+                '''
+            }
+        }
+
+        stage('Build & test') {
+            steps {
+                sh '''
+                    docker run --rm --volumes-from jenkins --network ci-lab \
+                      -v ci-lab-m2:/root/.m2 \
+                      -w "$WORKSPACE/$APP_DIR" \
+                      -e TEST_DB_URL="jdbc:postgresql://ci-postgres:5432/$TEST_DB" \
+                      -e TEST_DB_USER=ci \
+                      -e TEST_DB_PASSWORD=ci \
+                      "$MAVEN_IMAGE" mvn -B verify
+                '''
+            }
+            post {
+                always {
+                    junit testResults: "${APP_DIR}/target/surefire-reports/*.xml", allowEmptyResults: true
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker exec ci-postgres dropdb -U ci --if-exists "$TEST_DB" || true'
+        }
+    }
+}

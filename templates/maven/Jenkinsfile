@@ -1,0 +1,40 @@
+// Template: Java / Maven project (Spring Boot or plain Java).
+// Copy to the root of your repo as "Jenkinsfile". Change MAVEN_IMAGE for another JDK, or APP_DIR if the
+// pom.xml isn't at the repo root.
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        disableConcurrentBuilds()
+    }
+
+    environment {
+        MAVEN_IMAGE = 'maven:3.9-eclipse-temurin-21'
+        APP_DIR = '.'
+    }
+
+    stages {
+        stage('Build & test') {
+            steps {
+                // Runs in a throwaway Maven container that shares this workspace (see README)
+                sh '''
+                    docker run --rm --volumes-from jenkins --network ci-lab \
+                      -v ci-lab-m2:/root/.m2 \
+                      -w "$WORKSPACE/$APP_DIR" \
+                      "$MAVEN_IMAGE" mvn -B verify
+                '''
+            }
+            post {
+                always {
+                    junit testResults: "${APP_DIR}/target/surefire-reports/*.xml", allowEmptyResults: true
+                }
+                success {
+                    archiveArtifacts artifacts: "${APP_DIR}/target/*.jar", allowEmptyArchive: true, fingerprint: true
+                }
+            }
+        }
+    }
+}
