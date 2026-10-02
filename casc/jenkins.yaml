@@ -1,0 +1,24 @@
+# Jenkins Configuration as Code: the whole server is defined here and re-applied on every start.
+# Settings changed in the web UI are overwritten on the next restart; change this file instead.
+jenkins:
+  systemMessage: "Jenkins CI lab · configured as code (github.com/amirizalrahmat0799/jenkins-ci-lab)"
+  # Builds run on the built-in node; each step runs in its own Docker container (see README).
+  numExecutors: 2
+  mode: NORMAL
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "${JENKINS_ADMIN_ID}"
+          password: "${JENKINS_ADMIN_PASSWORD}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+unclassified:
+  location:
+    url: "http://localhost:8090/"
+
+# Jobs are created by Job DSL scripts, so they are code too.
+jobs:
+  - file: /usr/share/jenkins/jobs/kira-finance.groovy
