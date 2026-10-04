@@ -8,6 +8,7 @@
 // and branches with new commits are built.
 def projects = [
     [name: 'kira-finance', repo: 'https://github.com/amirizalrahmat0799/kira-finance.git'],
+    [name: 'payment-gateway-sim', repo: 'https://github.com/amirizalrahmat0799/payment-gateway-sim.git'],
     // [name: 'my-next-app', repo: 'https://github.com/amirizalrahmat0799/my-next-app.git'],
 ]
 
