@@ -82,6 +82,33 @@ Combine them freely. A typical pipeline is: tests (`maven-postgres` or `node`) �
 - **Deployments:** apps deployed by `docker-deploy` run on the same `ci-lab` network, so they can reach each other by
   container name, and are published on the host port you choose.
 
+## Webhooks
+
+By default Jenkins re-scans each repo every 5 minutes, because GitHub can't send webhooks to `localhost`.
+To build within seconds of a push, run the optional **smee** relay:
+
+```mermaid
+flowchart LR
+    gh[GitHub push] -->|webhook| smee[(smee.io channel)]
+    client[smee client container] -->|outbound connection| smee
+    client -->|POST /git/notifyCommit| jenkins[Jenkins]
+```
+
+The client connects *out* to smee.io, so no port on your router is opened.
+
+1. Open https://smee.io, click **Start a new channel**, copy the URL.
+2. In Jenkins: **Manage Jenkins → Security → Git plugin notifyCommit access tokens → Add new access token**, copy it.
+3. In `.env`: set `COMPOSE_PROFILES=webhook`, `SMEE_URL`, `WEBHOOK_REPO_URL` (exactly as in `jobs/projects.groovy`)
+   and `NOTIFY_COMMIT_TOKEN`, then `docker compose up -d`.
+4. In the GitHub repo: **Settings → Webhooks → Add webhook**. Payload URL: the smee URL, content type
+   `application/json`, event: **Just the push event**.
+
+Push a commit and `docker compose logs -f smee` shows the forwarded event; the branch build starts right away.
+The 5-minute scan stays on as a fallback if the relay is down.
+
+Limits: one relay forwards one repo (add another `smee` service per repo), and smee.io channels are public, so
+use them for public repos only. For a real server, point the GitHub webhook straight at Jenkins instead.
+
 ## Changing the configuration
 
 Edit `casc/jenkins.yaml` or `jobs/*.groovy`, then run `docker compose restart jenkins`. Changes made in the web UI are

@@ -43,6 +43,27 @@ services:
       timeout: 3s
       retries: 10
 
+  # Webhook relay (optional): GitHub can't reach localhost, so this client listens on a public
+  # smee.io channel and forwards each push event to Jenkins' git notifyCommit endpoint, which
+  # triggers branch indexing right away instead of waiting for the 5-minute scan.
+  # Enabled by COMPOSE_PROFILES=webhook in .env. See "Webhooks" in the README.
+  smee:
+    image: node:22-alpine
+    container_name: smee
+    restart: unless-stopped
+    profiles: [webhook]
+    # List form: no shell parsing, so the "&" between the query parameters is kept as-is
+    command:
+      - npx
+      - --yes
+      - smee-client
+      - --url
+      - ${SMEE_URL}
+      - --target
+      - http://jenkins:8080/git/notifyCommit?url=${WEBHOOK_REPO_URL}&token=${NOTIFY_COMMIT_TOKEN}
+    depends_on:
+      - jenkins
+
 networks:
   default:
     name: ci-lab # build containers join this network to reach ci-postgres
